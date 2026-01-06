@@ -26,8 +26,6 @@ jobs:
             name: yarm-windows-x86.exe
 
     runs-on: ${{ matrix.platform.os }}
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,20 +34,13 @@ jobs:
         shell: bash
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Update Cargo.toml
-        shell: bash
-        run: |
-          # Simple sed replacement for version
-          sed -i 's/^version = ".*"/version = "${{ steps.get_version.outputs.version }}"/' Cargo.toml
+      - name: Install yq
+        uses: dcarbone/install-yq-action@v1.1.1
 
-      - name: Commit Version Bump
+      - name: Update Cargo.toml Version
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml
-          git commit -m ":bookmark: Bump version to ${{ steps.get_version.outputs.version }}"
-          # We don't push this, we just build from this state
+          yq -i '.package.version = "${{ steps.get_version.outputs.version }}"' Cargo.toml
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -59,7 +50,7 @@ jobs:
       - name: Build Binary
         run: cargo build --release --target ${{ matrix.platform.target }}
 
-      - name: Rename and Upload Artifact
+      - name: Rename Artifact
         shell: bash
         run: |
           cp target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} ${{ matrix.platform.name }}
@@ -117,3 +108,38 @@ jobs:
             yarm-windows-x86.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sync-version:
+    name: Sync Version to Repo
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main # Checkout main branch to push the update
+
+      - name: Get Version
+        id: get_version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Install yq
+        uses: dcarbone/install-yq-action@v1.1.1
+
+      - name: Update Cargo.toml
+        run: |
+          yq -i '.package.version = "${{ steps.get_version.outputs.version }}"' Cargo.toml
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes
+          if [[ -n $(git status -s) ]]; then
+            git add Cargo.toml
+            git commit -m ":bookmark: Bump version to ${{ steps.get_version.outputs.version }}"
+            git push origin main
+          else
+            echo "No changes to commit (Version might be already up to date)."
+          fi
