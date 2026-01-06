@@ -1,0 +1,88 @@
+name: Dev Build
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build - ${{ matrix.platform.release_for }}
+    strategy:
+      matrix:
+        platform:
+          - release_for: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: yarm.exe
+            name: yarm-windows-x86_64.exe
+          - release_for: Windows-x86
+            os: windows-latest
+            target: i686-pc-windows-msvc
+            bin: yarm.exe
+            name: yarm-windows-x86.exe
+
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Build Binary
+        run: cargo build --release --target ${{ matrix.platform.target }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.name }}
+          path: target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}
+          retention-days: 1
+
+  publish-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Update dev tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f dev
+          git push origin dev --force
+
+      - name: Generate Release Notes
+        run: |
+          echo "### Latest Development Build" > release_notes.md
+          echo "" >> release_notes.md
+          echo "Commit: $(git log -1 --format='%h - %s')" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "Build Date: $(date -u)" >> release_notes.md
+
+      - name: Release Dev
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: Development Build
+          body_path: release_notes.md
+          prerelease: true
+          files: |
+            yarm-windows-x86_64.exe
+            yarm-windows-x86.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
