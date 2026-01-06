@@ -51,9 +51,9 @@ jobs:
         run: cargo build --release --target ${{ matrix.platform.target }}
 
       - name: Rename Artifact
-        shell: bash
+        shell: pwsh
         run: |
-          cp target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} ${{ matrix.platform.name }}
+          Copy-Item target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} ${{ matrix.platform.name }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -75,7 +75,7 @@ jobs:
         with:
           configuration: |
             {
-              "template": "#{{CHANGELOG}}\n\n<details>\n<summary>Uncategorized</summary>\n\n#{{UNCATEGORIZED}}\n</details>",
+              "template": "#{{CHANGELOG}}\n\n## Contributors\n#{{CONTRIBUTORS}}",
               "categories": [
                 {
                     "title": "## 🚀 Features",
@@ -84,10 +84,6 @@ jobs:
                 {
                     "title": "## 🐛 Fixes",
                     "labels": ["fix", "bug"]
-                },
-                {
-                    "title": "## 🧪 Tests",
-                    "labels": ["test"]
                 }
               ]
             }
@@ -99,13 +95,14 @@ jobs:
         with:
           merge-multiple: true
 
-      - name: Create Release
+      - name: Create/Update Release
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.build_changelog.outputs.changelog }}
           files: |
             yarm-windows-x86_64.exe
             yarm-windows-x86.exe
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -116,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main # Checkout main branch to push the update
+          ref: main
 
       - name: Get Version
         id: get_version
@@ -134,12 +131,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Check if there are changes
           if [[ -n $(git status -s) ]]; then
             git add Cargo.toml
             git commit -m ":bookmark: Bump version to ${{ steps.get_version.outputs.version }}"
             git push origin main
-          else
-            echo "No changes to commit (Version might be already up to date)."
           fi
