@@ -1,4 +1,4 @@
-use crate::ui::message::Message;
+use crate::ui::model::Message;
 use crate::ui::theme::{
     floating_column_style, secondary_button_style, COL_PRIMARY, COL_TEXT_DARK, COL_TEXT_MUTED,
 };

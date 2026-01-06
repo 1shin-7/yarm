@@ -1,6 +1,21 @@
+use crate::display::{Monitor, Orientation, Resolution};
 use crate::utils::config::AppConfig;
-use crate::display::{Monitor, Resolution, Orientation};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Loaded(Result<(Vec<Monitor>, AppConfig), String>),
+    ResolutionChanged(String, Resolution),
+    OrientationChanged(String, Orientation),
+    ApplyToSystem,
+    OpenSaveDialog,
+    CloseSaveDialog,
+    ConfirmSaveProfile,
+    LoadProfile(String),
+    NewProfileNameChanged(String),
+    Refresh,
+    WindowResized(iced::Size),
+}
 
 pub struct YarmApp {
     pub monitors: Vec<Monitor>,

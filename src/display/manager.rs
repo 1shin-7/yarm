@@ -12,13 +12,13 @@ use windows::Win32::Foundation::{ERROR_SUCCESS, HWND};
 use windows::Win32::Graphics::Gdi::{
     ChangeDisplaySettingsExW, EnumDisplayDevicesW, EnumDisplaySettingsW, CDS_GLOBAL,
     CDS_UPDATEREGISTRY, DEVMODEW, DISPLAY_DEVICEW, DISP_CHANGE_SUCCESSFUL, DM_BITSPERPEL,
-    DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, DM_DISPLAYORIENTATION, ENUM_CURRENT_SETTINGS,
+    DM_DISPLAYFREQUENCY, DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_CURRENT_SETTINGS,
     ENUM_DISPLAY_SETTINGS_MODE,
 };
 
 use super::monitor::Monitor;
-use super::resolution::Resolution;
 use super::orientation::Orientation;
+use super::resolution::Resolution;
 
 pub struct DisplayManager;
 
@@ -306,15 +306,19 @@ impl DisplayManager {
             let _ = EnumDisplaySettingsW(device_name_pcwstr, ENUM_CURRENT_SETTINGS, &mut dev_mode);
         }
 
-        let old_orientation = unsafe { Orientation::from_u32(dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation.0) };
-        
+        let old_orientation =
+            unsafe { Orientation::from_u32(dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation.0) };
+
         // Update orientation
-        dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation = windows::Win32::Graphics::Gdi::DEVMODE_DISPLAY_ORIENTATION(orientation.to_u32());
+        dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation =
+            windows::Win32::Graphics::Gdi::DEVMODE_DISPLAY_ORIENTATION(orientation.to_u32());
         dev_mode.dmFields = DM_DISPLAYORIENTATION;
 
         // Swap width/height if orientation changes between landscape/portrait types
-        let is_old_portrait = old_orientation == Orientation::Portrait || old_orientation == Orientation::PortraitFlipped;
-        let is_new_portrait = orientation == Orientation::Portrait || orientation == Orientation::PortraitFlipped;
+        let is_old_portrait = old_orientation == Orientation::Portrait
+            || old_orientation == Orientation::PortraitFlipped;
+        let is_new_portrait =
+            orientation == Orientation::Portrait || orientation == Orientation::PortraitFlipped;
 
         if is_old_portrait != is_new_portrait {
             let w = dev_mode.dmPelsWidth;

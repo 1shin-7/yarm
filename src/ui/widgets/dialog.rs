@@ -1,5 +1,5 @@
 use crate::display::Resolution;
-use crate::ui::message::Message;
+use crate::ui::model::Message;
 use crate::ui::theme::{
     card_style, primary_button_style, secondary_button_style, COL_TEXT_DARK, COL_TEXT_MUTED,
 };

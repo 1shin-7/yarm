@@ -1,8 +1,8 @@
-use iced::widget::{button, container, row, text};
-use iced::{Alignment, Element, Length, Color, Background, Theme, Border};
-use iced::border::Radius;
 use crate::display::Orientation;
 use crate::ui::theme::{COL_PRIMARY, COL_PRIMARY_TEXT, COL_TEXT_MUTED};
+use iced::border::Radius;
+use iced::widget::{button, container, row, text};
+use iced::{Alignment, Background, Border, Color, Element, Length, Theme};
 
 pub struct OrientationSwitcher<Message> {
     current: Orientation,
@@ -10,10 +10,7 @@ pub struct OrientationSwitcher<Message> {
 }
 
 impl<Message: Clone + 'static> OrientationSwitcher<Message> {
-    pub fn new(
-        current: Orientation,
-        on_change: impl Fn(Orientation) -> Message + 'static,
-    ) -> Self {
+    pub fn new(current: Orientation, on_change: impl Fn(Orientation) -> Message + 'static) -> Self {
         Self {
             current,
             on_change: Box::new(on_change),
@@ -30,7 +27,7 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
 
         let content = options.iter().fold(row![], |row, (orientation, label)| {
             let is_selected = *orientation == self.current;
-            
+
             let btn_style = move |_theme: &Theme, status: button::Status| {
                 let mut style = button::Style {
                     border: Border {
@@ -47,7 +44,8 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
                     style.background = Some(Background::Color(Color::TRANSPARENT));
                     style.text_color = COL_TEXT_MUTED;
                     if status == button::Status::Hovered {
-                        style.background = Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.05)));
+                        style.background =
+                            Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.05)));
                     }
                 }
                 style
@@ -57,7 +55,7 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
                 container(text(*label).size(12))
                     .width(Length::Fill)
                     .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
             )
             .width(Length::Fill)
             .padding(8)
@@ -69,7 +67,7 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
 
             // Add separator line if not last and not selected (optional, but grouped look is cleaner without internal borders if highlighting is used)
             // For shadcn grouped style, usually just background highlight.
-            
+
             row.push(btn)
         });
 
