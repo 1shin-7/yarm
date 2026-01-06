@@ -6,9 +6,22 @@ use iced::widget::{container, row};
 use iced::{Background, Element, Length};
 
 pub fn view(app: &YarmApp) -> Element<'_, Message> {
+
     let profiles_section = views::profile::view(&app.config.profiles);
-    let main_area =
-        views::monitor::view(&app.monitors, &app.staging_resolutions, &app.status_message);
+
+    let main_area = views::monitor::view(
+
+        &app.monitors,
+
+        &app.staging_resolutions,
+
+        &app.staging_orientations,
+
+        &app.status_message
+
+    );
+
+
 
     let content = container(row![profiles_section, main_area].spacing(30))
         .width(Length::Fill)

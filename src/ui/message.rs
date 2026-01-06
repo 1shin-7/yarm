@@ -1,10 +1,11 @@
-use crate::display::{Monitor, Resolution};
+use crate::display::{Monitor, Resolution, Orientation};
 use crate::utils::config::AppConfig;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Loaded(Result<(Vec<Monitor>, AppConfig), String>),
     ResolutionChanged(String, Resolution),
+    OrientationChanged(String, Orientation),
     ApplyToSystem,
     OpenSaveDialog,
     CloseSaveDialog,

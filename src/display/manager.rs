@@ -12,12 +12,13 @@ use windows::Win32::Foundation::{ERROR_SUCCESS, HWND};
 use windows::Win32::Graphics::Gdi::{
     ChangeDisplaySettingsExW, EnumDisplayDevicesW, EnumDisplaySettingsW, CDS_GLOBAL,
     CDS_UPDATEREGISTRY, DEVMODEW, DISPLAY_DEVICEW, DISP_CHANGE_SUCCESSFUL, DM_BITSPERPEL,
-    DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_CURRENT_SETTINGS,
+    DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, DM_DISPLAYORIENTATION, ENUM_CURRENT_SETTINGS,
     ENUM_DISPLAY_SETTINGS_MODE,
 };
 
 use super::monitor::Monitor;
 use super::resolution::Resolution;
+use super::orientation::Orientation;
 
 pub struct DisplayManager;
 
@@ -178,6 +179,10 @@ impl DisplayManager {
                     bits_per_pixel: dev_mode.dmBitsPerPel,
                 };
 
+                let current_orientation = unsafe {
+                    Orientation::from_u32(dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation.0)
+                };
+
                 let position = unsafe {
                     (
                         dev_mode.Anonymous1.Anonymous2.dmPosition.x,
@@ -233,6 +238,7 @@ impl DisplayManager {
                     name: friendly_name,
                     device_name: device_name_str,
                     current_resolution: current_res,
+                    current_orientation,
                     position,
                     is_primary,
                     available_resolutions: resolutions,
@@ -281,6 +287,58 @@ impl DisplayManager {
         } else {
             Err(anyhow!(
                 "Failed to change display settings. Error code: {:?}",
+                result
+            ))
+        }
+    }
+
+    pub fn set_orientation(device_name: &str, orientation: Orientation) -> Result<()> {
+        let mut dev_mode = DEVMODEW {
+            dmSize: mem::size_of::<DEVMODEW>() as u16,
+            ..Default::default()
+        };
+
+        let device_name_w: Vec<u16> = device_name.encode_utf16().chain(Some(0)).collect();
+        let device_name_pcwstr = PCWSTR::from_raw(device_name_w.as_ptr());
+
+        // Get current settings first
+        unsafe {
+            let _ = EnumDisplaySettingsW(device_name_pcwstr, ENUM_CURRENT_SETTINGS, &mut dev_mode);
+        }
+
+        let old_orientation = unsafe { Orientation::from_u32(dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation.0) };
+        
+        // Update orientation
+        dev_mode.Anonymous1.Anonymous2.dmDisplayOrientation = windows::Win32::Graphics::Gdi::DEVMODE_DISPLAY_ORIENTATION(orientation.to_u32());
+        dev_mode.dmFields = DM_DISPLAYORIENTATION;
+
+        // Swap width/height if orientation changes between landscape/portrait types
+        let is_old_portrait = old_orientation == Orientation::Portrait || old_orientation == Orientation::PortraitFlipped;
+        let is_new_portrait = orientation == Orientation::Portrait || orientation == Orientation::PortraitFlipped;
+
+        if is_old_portrait != is_new_portrait {
+            let w = dev_mode.dmPelsWidth;
+            let h = dev_mode.dmPelsHeight;
+            dev_mode.dmPelsWidth = h;
+            dev_mode.dmPelsHeight = w;
+            dev_mode.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT;
+        }
+
+        let result = unsafe {
+            ChangeDisplaySettingsExW(
+                device_name_pcwstr,
+                Some(&dev_mode),
+                HWND(std::ptr::null_mut()),
+                CDS_UPDATEREGISTRY | CDS_GLOBAL,
+                None,
+            )
+        };
+
+        if result == DISP_CHANGE_SUCCESSFUL {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "Failed to change display orientation. Error code: {:?}",
                 result
             ))
         }

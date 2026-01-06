@@ -1,1 +1,1 @@
-// Widgets module
+pub mod orientation_switcher;
