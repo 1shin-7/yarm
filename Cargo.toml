@@ -20,4 +20,5 @@ features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_Devices_Display",
 ]

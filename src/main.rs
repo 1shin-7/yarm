@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
         }
     } else {
         // GUI mode
-        if let Err(e) = gui::run() {
+        if let Err(e) = gui::run(args.debug) {
             error!("GUI Error: {}", e);
             std::process::exit(1);
         }
