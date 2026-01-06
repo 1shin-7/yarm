@@ -1,7 +1,7 @@
 mod cli;
-mod config;
 mod display;
-mod gui;
+mod ui;
+mod utils;
 
 use clap::Parser;
 use log::error;
@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
         }
     } else {
         // GUI mode
-        if let Err(e) = gui::run(args.debug) {
+        if let Err(e) = ui::run(args.debug) {
             error!("GUI Error: {}", e);
             std::process::exit(1);
         }

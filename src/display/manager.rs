@@ -1,64 +1,23 @@
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::mem;
 use windows::core::PCWSTR;
 use windows::Win32::Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
     DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
-    DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO,
-    DISPLAYCONFIG_SOURCE_DEVICE_NAME, DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
+    DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
+    DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
 };
 use windows::Win32::Foundation::{ERROR_SUCCESS, HWND};
 use windows::Win32::Graphics::Gdi::{
-    ChangeDisplaySettingsExW,
-    EnumDisplayDevicesW,
-    EnumDisplaySettingsW,
-    CDS_GLOBAL,
-    CDS_UPDATEREGISTRY,
-    DEVMODEW,
-    DISPLAY_DEVICEW,
-    DISP_CHANGE_SUCCESSFUL,
-    DM_BITSPERPEL,
-    DM_DISPLAYFREQUENCY,
-    DM_PELSWIDTH,
-    DM_PELSHEIGHT,
-    ENUM_CURRENT_SETTINGS,
+    ChangeDisplaySettingsExW, EnumDisplayDevicesW, EnumDisplaySettingsW, CDS_GLOBAL,
+    CDS_UPDATEREGISTRY, DEVMODEW, DISPLAY_DEVICEW, DISP_CHANGE_SUCCESSFUL, DM_BITSPERPEL,
+    DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_CURRENT_SETTINGS,
     ENUM_DISPLAY_SETTINGS_MODE,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Resolution {
-    pub width: u32,
-    pub height: u32,
-    pub frequency: u32,
-    pub bits_per_pixel: u32,
-}
-
-impl std::fmt::Display for Resolution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}x{} @ {}Hz ({}bit)",
-            self.width,
-            self.height,
-            self.frequency,
-            self.bits_per_pixel
-        )
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Monitor {
-    pub id: String,
-    pub name: String,         // Friendly name (e.g. "Dell U2415")
-    pub device_name: String,  // OS device name (e.g. "\\.\\DISPLAY1")
-    pub current_resolution: Resolution,
-    pub position: (i32, i32),
-    pub is_primary: bool,
-    #[serde(skip)]
-    pub available_resolutions: Vec<Resolution>,
-}
+use super::monitor::Monitor;
+use super::resolution::Resolution;
 
 pub struct DisplayManager;
 
@@ -70,7 +29,9 @@ impl DisplayManager {
         let mut num_modes = 0;
 
         unsafe {
-            if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut num_paths, &mut num_modes) != ERROR_SUCCESS {
+            if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut num_paths, &mut num_modes)
+                != ERROR_SUCCESS
+            {
                 return names_map;
             }
 
@@ -88,7 +49,7 @@ impl DisplayManager {
             {
                 return names_map;
             }
-            
+
             // Resize vector to actual returned count, just in case
             paths.truncate(num_paths as usize);
 
@@ -108,15 +69,18 @@ impl DisplayManager {
                     // 2. Get Target Name (Friendly Name)
                     let mut target_name = DISPLAYCONFIG_TARGET_DEVICE_NAME::default();
                     target_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
-                    target_name.header.size = mem::size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32;
+                    target_name.header.size =
+                        mem::size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32;
                     target_name.header.adapterId = path.targetInfo.adapterId;
                     target_name.header.id = path.targetInfo.id;
 
-                    if DisplayConfigGetDeviceInfo(&mut target_name.header) == ERROR_SUCCESS.0 as i32 {
-                        let friendly_name = String::from_utf16_lossy(&target_name.monitorFriendlyDeviceName)
-                            .trim_matches(char::from(0))
-                            .to_string();
-                        
+                    if DisplayConfigGetDeviceInfo(&mut target_name.header) == ERROR_SUCCESS.0 as i32
+                    {
+                        let friendly_name =
+                            String::from_utf16_lossy(&target_name.monitorFriendlyDeviceName)
+                                .trim_matches(char::from(0))
+                                .to_string();
+
                         if !friendly_name.is_empty() {
                             names_map.insert(gdi_device_name, friendly_name);
                         }
@@ -130,7 +94,7 @@ impl DisplayManager {
     pub fn enumerate_monitors() -> Result<Vec<Monitor>> {
         let mut monitors = Vec::new();
         let mut dev_num = 0;
-        
+
         // Pre-fetch friendly names mapping
         let names_map = Self::get_display_names_map();
 
@@ -147,45 +111,52 @@ impl DisplayManager {
             }
 
             // Check if attached to desktop
-            if (display_device.StateFlags & windows::Win32::Graphics::Gdi::DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0 {
+            if (display_device.StateFlags
+                & windows::Win32::Graphics::Gdi::DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)
+                != 0
+            {
                 let device_name_os = display_device.DeviceName;
                 let device_name_str = String::from_utf16_lossy(&device_name_os)
                     .trim_matches(char::from(0))
                     .to_string();
 
-                let is_primary = (display_device.StateFlags & windows::Win32::Graphics::Gdi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+                let is_primary = (display_device.StateFlags
+                    & windows::Win32::Graphics::Gdi::DISPLAY_DEVICE_PRIMARY_DEVICE)
+                    != 0;
 
                 // Try to get friendly name from QueryDisplayConfig map first
-                let mut friendly_name = names_map.get(&device_name_str).cloned().unwrap_or_default();
+                let mut friendly_name =
+                    names_map.get(&device_name_str).cloned().unwrap_or_default();
 
                 // Fallback to EnumDisplayDevices logic if empty
                 if friendly_name.is_empty() {
-                     let mut monitor_device = DISPLAY_DEVICEW {
+                    let mut monitor_device = DISPLAY_DEVICEW {
                         cb: mem::size_of::<DISPLAY_DEVICEW>() as u32,
                         ..Default::default()
                     };
-                    
+
                     friendly_name = unsafe {
-                         if EnumDisplayDevicesW(PCWSTR::from_raw(display_device.DeviceName.as_ptr()), 0, &mut monitor_device, 0).as_bool() {
-                             String::from_utf16_lossy(&monitor_device.DeviceString)
+                        if EnumDisplayDevicesW(
+                            PCWSTR::from_raw(display_device.DeviceName.as_ptr()),
+                            0,
+                            &mut monitor_device,
+                            0,
+                        )
+                        .as_bool()
+                        {
+                            String::from_utf16_lossy(&monitor_device.DeviceString)
                                 .trim_matches(char::from(0))
                                 .to_string()
-                         } else {
-                             format!("Display {}", dev_num + 1)
-                         }
+                        } else {
+                            format!("Display {}", dev_num + 1)
+                        }
                     };
                 }
-                
-                // If still generic/empty, default to Display X
-                if friendly_name.is_empty() || friendly_name == "Generic PnP Monitor" {
-                     // Check if we have a better name in the map that we might have missed (unlikely if loop above worked)
-                     // But sometimes users prefer the Generic name over nothing. 
-                     // Let's stick with what we have, but if it's strictly empty, fill it.
-                     if friendly_name.is_empty() {
-                         friendly_name = format!("Display {}", dev_num + 1);
-                     }
-                }
 
+                // If empty, default to Display X
+                if friendly_name.is_empty() {
+                    friendly_name = format!("Display {}", dev_num + 1);
+                }
 
                 // Get current settings
                 let mut dev_mode = DEVMODEW {
@@ -240,18 +211,19 @@ impl DisplayManager {
                         frequency: mode.dmDisplayFrequency,
                         bits_per_pixel: mode.dmBitsPerPel,
                     };
-                    
+
                     // Basic de-duplication
                     if !resolutions.contains(&res) {
-                         resolutions.push(res);
+                        resolutions.push(res);
                     }
-                   
+
                     mode_num += 1;
                 }
 
                 // Sorting
                 resolutions.sort_by(|a, b| {
-                    b.width.cmp(&a.width)
+                    b.width
+                        .cmp(&a.width)
                         .then(b.height.cmp(&a.height))
                         .then(b.frequency.cmp(&a.frequency))
                 });
@@ -278,24 +250,20 @@ impl DisplayManager {
             dmSize: mem::size_of::<DEVMODEW>() as u16,
             ..Default::default()
         };
-        
+
         let device_name_w: Vec<u16> = device_name.encode_utf16().chain(Some(0)).collect();
         let device_name_pcwstr = PCWSTR::from_raw(device_name_w.as_ptr());
 
         // Get current settings first to fill in other fields
         unsafe {
-             let _ = EnumDisplaySettingsW(
-                device_name_pcwstr,
-                ENUM_CURRENT_SETTINGS,
-                &mut dev_mode,
-            );
+            let _ = EnumDisplaySettingsW(device_name_pcwstr, ENUM_CURRENT_SETTINGS, &mut dev_mode);
         }
 
         dev_mode.dmPelsWidth = resolution.width;
         dev_mode.dmPelsHeight = resolution.height;
         dev_mode.dmDisplayFrequency = resolution.frequency;
         dev_mode.dmBitsPerPel = resolution.bits_per_pixel;
-        
+
         dev_mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_BITSPERPEL;
 
         let result = unsafe {
@@ -311,7 +279,10 @@ impl DisplayManager {
         if result == DISP_CHANGE_SUCCESSFUL {
             Ok(())
         } else {
-            Err(anyhow!("Failed to change display settings. Error code: {:?}", result))
+            Err(anyhow!(
+                "Failed to change display settings. Error code: {:?}",
+                result
+            ))
         }
     }
 }
