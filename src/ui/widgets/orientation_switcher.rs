@@ -31,7 +31,7 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
             let btn_style = move |_theme: &Theme, status: button::Status| {
                 let mut style = button::Style {
                     border: Border {
-                        radius: Radius::from(6.0),
+                        radius: Radius::from(8.0), // Corrected for concentric look (12 - 4 = 8)
                         width: 0.0,
                         color: Color::TRANSPARENT,
                     },
@@ -79,7 +79,7 @@ impl<Message: Clone + 'static> OrientationSwitcher<Message> {
                 border: Border {
                     color: Color::from_rgba(0.0, 0.0, 0.0, 0.1),
                     width: 1.0,
-                    radius: Radius::from(8.0),
+                    radius: Radius::from(12.0),
                 },
                 ..Default::default()
             })

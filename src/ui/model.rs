@@ -13,12 +13,16 @@ pub enum Message {
     ConfirmSaveProfile,
     LoadProfile(String),
     NewProfileNameChanged(String),
-    Refresh,
     WindowResized(iced::Size),
     // Confirmation Timer
     Tick,
     ConfirmResolution,
     RevertResolution,
+    // Auto Refresh
+    RefreshTick,
+    AutoRefreshed(Result<Vec<Monitor>, String>),
+    OpenSettings,
+    CloseSettings,
     // Profile Deletion
     RequestDeleteProfile(String),
     ConfirmDeleteProfile,
@@ -38,6 +42,7 @@ pub struct YarmApp {
     pub waiting_for_confirmation: bool,
     pub confirmation_timer: u8,
     pub backup_resolutions: HashMap<String, Resolution>,
+    pub show_settings: bool,
     // Profile Deletion
     pub profile_to_delete: Option<String>,
 }
@@ -56,6 +61,7 @@ impl Default for YarmApp {
             waiting_for_confirmation: false,
             confirmation_timer: 0,
             backup_resolutions: HashMap::new(),
+            show_settings: false,
             profile_to_delete: None,
         }
     }

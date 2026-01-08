@@ -1,6 +1,6 @@
 use crate::ui::model::Message;
 use crate::ui::theme::{
-    delete_icon_button_style, floating_column_style, secondary_button_style, COL_PRIMARY,
+    compact_neutral_button_style, delete_icon_button_style, floating_column_style, COL_PRIMARY,
     COL_TEXT_DARK,
 };
 use crate::utils::config::Profile;
@@ -10,6 +10,7 @@ use iced::{Alignment, Element, Length};
 
 pub fn view<'a>(profiles: &'a [Profile]) -> Element<'a, Message> {
     let profiles_list = profiles.iter().fold(column![].spacing(8), |col, profile| {
+        // ... (existing profiles_list logic)
         col.push(
             row![
                 button(
@@ -26,7 +27,7 @@ pub fn view<'a>(profiles: &'a [Profile]) -> Element<'a, Message> {
                     let mut base = button::Style {
                         background: Some(iced::Background::Color(iced::Color::TRANSPARENT)),
                         border: iced::Border {
-                            radius: Radius::from(8.0),
+                            radius: Radius::from(12.0),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -56,26 +57,51 @@ pub fn view<'a>(profiles: &'a [Profile]) -> Element<'a, Message> {
 
     container(
         column![
-            text("Profiles")
-                .size(22)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                })
-                .color(COL_PRIMARY),
-            scrollable(profiles_list).height(Length::Fill),
-            iced::widget::vertical_space().height(10),
-            button(text("+ Save Profile").align_x(iced::alignment::Horizontal::Center))
+            // Header and List with standard padding
+            container(
+                column![
+                    text("Profiles")
+                        .size(22)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..Default::default()
+                        })
+                        .color(COL_PRIMARY),
+                    scrollable(profiles_list).height(Length::Fill),
+                ]
+                .spacing(15)
+            )
+            .height(Length::Fill)
+            .padding(iced::Padding {
+                top: 20.0,
+                right: 20.0,
+                bottom: 10.0,
+                left: 20.0,
+            }),
+            // Footer with Save button and tighter padding
+            container(
+                button(
+                    text("Save")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        })
+                )
                 .on_press(Message::OpenSaveDialog)
                 .width(Length::Fill)
-                .padding(12)
-                .style(secondary_button_style)
+                .height(Length::Fixed(40.0))
+                .padding(0)
+                .style(compact_neutral_button_style)
+            )
+            .padding(8)
         ]
-        .spacing(15),
     )
     .width(Length::Fixed(200.0))
     .height(Length::Fill)
-    .padding(20)
     .style(floating_column_style)
     .into()
 }

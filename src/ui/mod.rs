@@ -12,6 +12,7 @@ use iced::{event, Background, Color, Element, Length, Subscription, Task, Theme}
 use self::model::{Message, YarmApp};
 use self::theme::*;
 use crate::utils::config::AppConfig;
+use iced::Alignment;
 
 pub fn run(debug: bool) -> iced::Result {
     iced::application(
@@ -21,7 +22,8 @@ pub fn run(debug: bool) -> iced::Result {
     )
     .theme(YarmApp::theme)
     .window(iced::window::Settings {
-        size: iced::Size::new(720.0, 640.0), // Updated size
+        size: iced::Size::new(620.0, 700.0),
+        min_size: Some(iced::Size::new(620.0, 700.0)),
         ..Default::default()
     })
     .subscription(YarmApp::subscription)
@@ -58,7 +60,14 @@ impl YarmApp {
             Subscription::none()
         };
 
-        Subscription::batch(vec![debug_sub, timer_sub])
+        let refresh_freq = self.config.general.refresh_freq;
+        let refresh_sub = if refresh_freq > 0 {
+             iced::time::every(std::time::Duration::from_secs(refresh_freq)).map(|_| Message::RefreshTick)
+        } else {
+            Subscription::none()
+        };
+
+        Subscription::batch(vec![debug_sub, timer_sub, refresh_sub])
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -86,11 +95,11 @@ impl YarmApp {
             }
             Message::ResolutionChanged(id, res) => {
                 self.staging_resolutions.insert(id, res);
-                Task::none()
+                Task::perform(async {}, |_| Message::ApplyToSystem)
             }
             Message::OrientationChanged(id, orient) => {
                 self.staging_orientations.insert(id, orient);
-                Task::none()
+                Task::perform(async {}, |_| Message::ApplyToSystem)
             }
             Message::ApplyToSystem => {
                 // Backup current resolutions before applying
@@ -164,6 +173,37 @@ impl YarmApp {
                     self.status_message = format!("Revert Errors: {}", errors.join("; "));
                 }
                 Task::perform(load_data(), Message::Loaded)
+            }
+            Message::RefreshTick => Task::perform(load_monitors(), Message::AutoRefreshed),
+            Message::AutoRefreshed(Ok(new_monitors)) => {
+                self.monitors = new_monitors;
+
+                // Sync Staging: Remove stale
+                self.staging_resolutions.retain(|id, _| self.monitors.iter().any(|m| &m.id == id));
+                self.staging_orientations.retain(|id, _| self.monitors.iter().any(|m| &m.id == id));
+
+                // Sync Staging: Add new (preserve existing user selections)
+                for m in &self.monitors {
+                    self.staging_resolutions
+                        .entry(m.id.clone())
+                        .or_insert(m.current_resolution.clone());
+                    self.staging_orientations
+                        .entry(m.id.clone())
+                        .or_insert(m.current_orientation);
+                }
+                Task::none()
+            }
+            Message::AutoRefreshed(Err(_)) => {
+                // Silently ignore auto-refresh errors to avoid spamming status
+                Task::none()
+            }
+            Message::OpenSettings => {
+                self.show_settings = true;
+                Task::none()
+            }
+            Message::CloseSettings => {
+                self.show_settings = false;
+                Task::none()
             }
             Message::RequestDeleteProfile(name) => {
                 self.profile_to_delete = Some(name);
@@ -241,7 +281,6 @@ impl YarmApp {
                 self.new_profile_name = name;
                 Task::none()
             }
-            Message::Refresh => Task::perform(load_data(), Message::Loaded),
             Message::WindowResized(size) => {
                 if self.debug {
                     println!("Window resized to: {}x{}", size.width, size.height);
@@ -260,7 +299,7 @@ impl YarmApp {
             &self.status_message,
         );
 
-        let content = container(row![profiles_section, main_area].spacing(30))
+        let content = container(row![profiles_section, main_area].spacing(12))
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(30) // Outer padding for floating feel
@@ -285,31 +324,55 @@ impl YarmApp {
                 text_input("Enter Profile Name", &self.new_profile_name)
                     .on_input(Message::NewProfileNameChanged)
                     .padding(10)
-                    .size(16),
+                    .size(16)
+                    .style(text_input_style),
                 container(text(monitor_summary).size(12).color(COL_TEXT_MUTED))
                     .padding(10)
-                    .style(|_theme| container::Style {
-                        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.03))),
-                        border: iced::Border {
-                            radius: Radius::from(8.0),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }),
-            ]
+                                    .style(|_theme| container::Style {
+                                        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.03))),
+                                        border: iced::Border {
+                                            radius: Radius::from(12.0),
+                                            ..Default::default()
+                                        },
+                                        ..Default::default()
+                                    }),            ]
             .spacing(10);
 
             let buttons = vec![
-                button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::CloseSaveDialog)
-                    .style(secondary_button_style)
-                    .width(Length::Fill)
-                    .into(),
-                button(text("Confirm").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::ConfirmSaveProfile)
-                    .style(primary_button_style)
-                    .width(Length::Fill)
-                    .into(),
+                button(
+                    text("Cancel")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::CloseSaveDialog)
+                .style(dialog_neutral_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
+                button(
+                    text("Confirm")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::ConfirmSaveProfile)
+                .style(primary_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
             ];
 
             widgets::dialog::view(
@@ -331,16 +394,40 @@ impl YarmApp {
                 .color(COL_TEXT_DARK);
 
             let buttons = vec![
-                button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::CancelDeleteProfile)
-                    .style(secondary_button_style)
-                    .width(Length::Fill)
-                    .into(),
-                button(text("Delete").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::ConfirmDeleteProfile)
-                    .style(danger_button_style)
-                    .width(Length::Fill)
-                    .into(),
+                button(
+                    text("Cancel")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::CancelDeleteProfile)
+                .style(dialog_neutral_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
+                button(
+                    text("Delete")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::ConfirmDeleteProfile)
+                .style(danger_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
             ];
 
             widgets::dialog::view(
@@ -355,7 +442,67 @@ impl YarmApp {
             content
         };
 
-        // 3. Confirmation Dialog (Highest Priority)
+        // 3. Settings Modal
+        let content = if self.show_settings {
+            iced::widget::stack![
+                content,
+                // Backdrop
+                button(text(" "))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .on_press(Message::CloseSettings)
+                    .style(backdrop_style),
+                // Modal Layout (handles 18px margin)
+                container(
+                    // Actual Card
+                    container(
+                        column![
+                            row![
+                                text("Settings").size(24).font(iced::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+                                iced::widget::horizontal_space(),
+                                button(text("Close"))
+                                    .on_press(Message::CloseSettings)
+                                    .style(dialog_neutral_button_style)
+                                    .padding([5, 15])
+                            ].align_y(Alignment::Center),
+                            
+                            container(text("Settings Placeholder").size(16).color(COL_TEXT_MUTED))
+                                .width(Length::Fill)
+                                .height(Length::Fill)
+                                .center_x(Length::Fill)
+                                .center_y(Length::Fill)
+                        ]
+                        .spacing(20)
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding(24) // Inner padding of the card
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(Color::WHITE)),
+                        border: iced::Border {
+                            radius: Radius::from(12.0),
+                            ..Default::default()
+                        },
+                        shadow: iced::Shadow {
+                            color: Color::from_rgba(0.0, 0.0, 0.0, 0.2),
+                            offset: iced::Vector::new(0.0, 5.0),
+                            blur_radius: 15.0,
+                        },
+                        ..Default::default()
+                    })
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(18) // 18px margin from edges
+            ]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+        } else {
+            content
+        };
+
+        // 4. Confirmation Dialog (Highest Priority)
         if self.waiting_for_confirmation {
              let confirm_content = column![
                 text(format!("Reverting in {} seconds...", self.confirmation_timer))
@@ -367,16 +514,40 @@ impl YarmApp {
             ].spacing(10);
 
             let buttons = vec![
-                button(text("Revert").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::RevertResolution)
-                    .style(secondary_button_style)
-                    .width(Length::Fill)
-                    .into(),
-                button(text("Keep Changes").align_x(iced::alignment::Horizontal::Center))
-                    .on_press(Message::ConfirmResolution)
-                    .style(primary_button_style)
-                    .width(Length::Fill)
-                    .into(),
+                button(
+                    text("Revert")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::RevertResolution)
+                .style(dialog_neutral_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
+                button(
+                    text("Keep Changes")
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Alignment::Center)
+                        .align_y(Alignment::Center)
+                        .font(iced::Font {
+                            weight: iced::font::Weight::Semibold,
+                            ..Default::default()
+                        }),
+                )
+                .on_press(Message::ConfirmResolution)
+                .style(primary_button_style)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(0)
+                .into(),
             ];
 
             widgets::dialog::view(
@@ -401,4 +572,8 @@ async fn load_data() -> Result<(Vec<Monitor>, AppConfig), String> {
     let monitors = DisplayManager::enumerate_monitors().map_err(|e| e.to_string())?;
     let config = ConfigManager::load().map_err(|e| e.to_string())?;
     Ok((monitors, config))
+}
+
+async fn load_monitors() -> Result<Vec<Monitor>, String> {
+    DisplayManager::enumerate_monitors().map_err(|e| e.to_string())
 }

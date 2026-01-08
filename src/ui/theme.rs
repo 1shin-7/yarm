@@ -17,7 +17,8 @@ pub fn card_style(_theme: &Theme) -> container::Style {
         border: Border {
             width: 0.0,
             color: Color::TRANSPARENT,
-            radius: Radius::from(12.0),
+            radius: Radius::from(16.0), // Outer cards slightly larger? Or stick to 12? User said "a fixed value". Let's stick to 12 for strict uniformity or 16 for cards. 
+            // "Fixed value" usually means ONE value. Let's use 12.0 everywhere.
         },
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.03),
@@ -74,20 +75,52 @@ pub fn primary_button_style(_theme: &Theme, status: button::Status) -> button::S
     }
 }
 
-pub fn secondary_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+pub fn dialog_neutral_button_style(_theme: &Theme, status: button::Status) -> button::Style {
     let base = button::Style {
-        background: Some(Background::Color(Color::TRANSPARENT)),
-        text_color: COL_PRIMARY,
+        background: Some(Background::Color(Color::from_rgb(0.88, 0.88, 0.88))), // Visible gray
+        text_color: COL_TEXT_DARK,
         border: Border {
             radius: Radius::from(12.0),
-            width: 1.0,
-            color: COL_PRIMARY,
+            width: 0.0,
+            color: Color::TRANSPARENT,
         },
         ..Default::default()
     };
     match status {
         button::Status::Hovered => button::Style {
-            background: Some(Background::Color(Color::from_rgba(0.36, 0.61, 0.61, 0.1))),
+            background: Some(Background::Color(Color::WHITE)),
+            border: Border {
+                radius: Radius::from(12.0),
+                width: 1.5,
+                color: COL_PRIMARY, // Use theme primary color
+            },
+            text_color: COL_PRIMARY, // Optional: also change text to primary on hover for consistency?
+            ..base
+        },
+        _ => base,
+    }
+}
+
+pub fn compact_neutral_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+    let base = button::Style {
+        background: Some(Background::Color(Color::from_rgb(0.88, 0.88, 0.88))), // Visible gray
+        text_color: COL_TEXT_DARK,
+        border: Border {
+            radius: Radius::from(8.0), // Compact radius
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        ..Default::default()
+    };
+    match status {
+        button::Status::Hovered => button::Style {
+            background: Some(Background::Color(Color::WHITE)),
+            border: Border {
+                radius: Radius::from(8.0),
+                width: 1.5,
+                color: COL_PRIMARY,
+            },
+            text_color: COL_PRIMARY,
             ..base
         },
         _ => base,
@@ -156,6 +189,21 @@ pub fn pick_list_style(_theme: &Theme, status: pick_list::Status) -> pick_list::
     }
 }
 
+pub fn text_input_style(_theme: &Theme, _status: iced::widget::text_input::Status) -> iced::widget::text_input::Style {
+    iced::widget::text_input::Style {
+        background: Background::Color(Color::WHITE),
+        border: Border {
+            radius: Radius::from(12.0),
+            width: 1.0,
+            color: Color::from_rgba(0.0, 0.0, 0.0, 0.1),
+        },
+        icon: Color::from_rgb(0.5, 0.5, 0.5),
+        placeholder: COL_TEXT_MUTED,
+        value: COL_TEXT_DARK,
+        selection: Color::from_rgba(0.36, 0.61, 0.61, 0.2),
+    }
+}
+
 pub fn delete_icon_button_style(_theme: &Theme, status: button::Status) -> button::Style {
     let base = button::Style {
         background: None,
@@ -170,6 +218,26 @@ pub fn delete_icon_button_style(_theme: &Theme, status: button::Status) -> butto
         button::Status::Hovered => button::Style {
             background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.1))), // Gray hover
             text_color: Color::from_rgb(0.8, 0.2, 0.2), // Red text on hover
+            ..base
+        },
+        _ => base,
+    }
+}
+
+pub fn settings_icon_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+    let base = button::Style {
+        background: None,
+        text_color: COL_TEXT_MUTED,
+        border: Border {
+            radius: Radius::from(100.0), // Circle
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    match status {
+        button::Status::Hovered => button::Style {
+            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.1))),
+            text_color: COL_TEXT_DARK,
             ..base
         },
         _ => base,

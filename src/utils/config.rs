@@ -17,18 +17,25 @@ pub struct AppConfig {
 pub struct GeneralConfig {
     #[serde(default = "default_reset_timeout")]
     pub reset_timeout: u8,
+    #[serde(default = "default_refresh_freq")]
+    pub refresh_freq: u64,
 }
 
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             reset_timeout: default_reset_timeout(),
+            refresh_freq: default_refresh_freq(),
         }
     }
 }
 
 fn default_reset_timeout() -> u8 {
     15
+}
+
+fn default_refresh_freq() -> u64 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
