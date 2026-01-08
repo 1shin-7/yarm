@@ -19,6 +19,10 @@ pub enum Message {
     Tick,
     ConfirmResolution,
     RevertResolution,
+    // Profile Deletion
+    RequestDeleteProfile(String),
+    ConfirmDeleteProfile,
+    CancelDeleteProfile,
 }
 
 pub struct YarmApp {
@@ -34,6 +38,8 @@ pub struct YarmApp {
     pub waiting_for_confirmation: bool,
     pub confirmation_timer: u8,
     pub backup_resolutions: HashMap<String, Resolution>,
+    // Profile Deletion
+    pub profile_to_delete: Option<String>,
 }
 
 impl Default for YarmApp {
@@ -50,6 +56,7 @@ impl Default for YarmApp {
             waiting_for_confirmation: false,
             confirmation_timer: 0,
             backup_resolutions: HashMap::new(),
+            profile_to_delete: None,
         }
     }
 }

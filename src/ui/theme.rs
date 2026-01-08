@@ -126,6 +126,26 @@ pub fn pick_list_style(_theme: &Theme, status: pick_list::Status) -> pick_list::
     }
 }
 
+pub fn delete_icon_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+    let base = button::Style {
+        background: None,
+        text_color: COL_TEXT_MUTED,
+        border: Border {
+            radius: Radius::from(100.0), // Circle
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    match status {
+        button::Status::Hovered => button::Style {
+            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.1))), // Gray hover
+            text_color: Color::from_rgb(0.8, 0.2, 0.2), // Red text on hover
+            ..base
+        },
+        _ => base,
+    }
+}
+
 // Menu style is usually defined via the `menu` method on PickList logic or passed implicitly if supported in theme?
 // In Iced 0.13, PickList takes a style function that returns `pick_list::Style`.
 // `pick_list::Style` has NO `menu` field in older versions, but let's check recent.

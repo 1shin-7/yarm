@@ -165,6 +165,26 @@ impl YarmApp {
                 }
                 Task::perform(load_data(), Message::Loaded)
             }
+            Message::RequestDeleteProfile(name) => {
+                self.profile_to_delete = Some(name);
+                Task::none()
+            }
+            Message::CancelDeleteProfile => {
+                self.profile_to_delete = None;
+                Task::none()
+            }
+            Message::ConfirmDeleteProfile => {
+                if let Some(name) = &self.profile_to_delete {
+                    self.config.profiles.retain(|p| &p.name != name);
+                    if let Err(e) = ConfigManager::save(&self.config) {
+                        self.status_message = format!("Failed to save config: {}", e);
+                    } else {
+                        self.status_message = format!("Profile '{}' deleted", name);
+                    }
+                }
+                self.profile_to_delete = None;
+                Task::none()
+            }
             Message::OpenSaveDialog => {
                 self.show_save_dialog = true;
                 self.new_profile_name.clear();
@@ -249,8 +269,8 @@ impl YarmApp {
                 ..Default::default()
             });
 
+        // 1. Save Dialog
         let content = if self.show_save_dialog {
-             // Dialog Content Construction
             let monitor_summary = self
                 .staging_resolutions
                 .iter()
@@ -302,7 +322,38 @@ impl YarmApp {
         } else {
             content.into()
         };
+
+        // 2. Delete Dialog
+        let content = if let Some(name) = &self.profile_to_delete {
+            let delete_content = text(format!("Are you sure you want to delete profile '{}'?", name))
+                .size(16)
+                .color(COL_TEXT_DARK);
+
+            let btns = vec![
+                button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::CancelDeleteProfile)
+                    .style(secondary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+                button(text("Delete").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::ConfirmDeleteProfile)
+                    .style(primary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+            ];
+
+            widgets::dialog::view(
+                true,
+                "Delete Profile",
+                container(delete_content).into(),
+                btns,
+                content
+            )
+        } else {
+            content
+        };
         
+        // 3. Confirmation Dialog (Highest Priority)
         if self.waiting_for_confirmation {
              let confirm_content = column![
                 text(format!("Reverting in {} seconds...", self.confirmation_timer))
