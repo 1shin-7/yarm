@@ -40,7 +40,7 @@ impl YarmApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.debug {
+        let debug_sub = if self.debug {
             event::listen_with(|event, _status, _window_id| {
                 if let iced::Event::Window(iced::window::Event::Resized(size)) = event {
                     Some(Message::WindowResized(size))
@@ -50,7 +50,15 @@ impl YarmApp {
             })
         } else {
             Subscription::none()
-        }
+        };
+
+        let timer_sub = if self.waiting_for_confirmation {
+            iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::Tick)
+        } else {
+            Subscription::none()
+        };
+
+        Subscription::batch(vec![debug_sub, timer_sub])
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -85,6 +93,12 @@ impl YarmApp {
                 Task::none()
             }
             Message::ApplyToSystem => {
+                // Backup current resolutions before applying
+                self.backup_resolutions.clear();
+                for m in &self.monitors {
+                    self.backup_resolutions.insert(m.id.clone(), m.current_resolution.clone());
+                }
+
                 let mut errors = Vec::new();
 
                 // Apply Resolutions
@@ -109,8 +123,45 @@ impl YarmApp {
 
                 if errors.is_empty() {
                     self.status_message = "Applied successfully".to_string();
+                    // Start confirmation timer
+                    self.waiting_for_confirmation = true;
+                    self.confirmation_timer = self.config.general.reset_timeout;
                 } else {
                     self.status_message = format!("Errors: {}", errors.join("; "));
+                }
+                Task::perform(load_data(), Message::Loaded)
+            }
+            Message::Tick => {
+                if self.waiting_for_confirmation {
+                    if self.confirmation_timer > 0 {
+                        self.confirmation_timer -= 1;
+                    } else {
+                        return Task::perform(async {}, |_| Message::RevertResolution);
+                    }
+                }
+                Task::none()
+            }
+            Message::ConfirmResolution => {
+                self.waiting_for_confirmation = false;
+                self.status_message = "Resolution confirmed".to_string();
+                Task::none()
+            }
+            Message::RevertResolution => {
+                self.waiting_for_confirmation = false;
+                let mut errors = Vec::new();
+                for (id, res) in &self.backup_resolutions {
+                    if let Some(monitor) = self.monitors.iter().find(|m| &m.id == id) {
+                         // Update staging to match revert
+                        self.staging_resolutions.insert(id.clone(), res.clone());
+                        if let Err(e) = DisplayManager::set_resolution(&monitor.device_name, res) {
+                            errors.push(format!("Revert {}: {}", monitor.name, e));
+                        }
+                    }
+                }
+                 if errors.is_empty() {
+                    self.status_message = "Reverted changes".to_string();
+                } else {
+                    self.status_message = format!("Revert Errors: {}", errors.join("; "));
                 }
                 Task::perform(load_data(), Message::Loaded)
             }
@@ -198,55 +249,93 @@ impl YarmApp {
                 ..Default::default()
             });
 
-        // Dialog Content Construction
-        let monitor_summary = self
-            .staging_resolutions
-            .iter()
-            .fold(String::new(), |acc, (_, res)| {
-                format!(
-                    "{}• {}\n",
-                    acc, res
-                )
-            });
+        let content = if self.show_save_dialog {
+             // Dialog Content Construction
+            let monitor_summary = self
+                .staging_resolutions
+                .iter()
+                .fold(String::new(), |acc, (_, res)| {
+                    format!(
+                        "{}• {}\n",
+                        acc, res
+                    )
+                });
 
-        let dialog_content = column![
-            text_input("Enter Profile Name", &self.new_profile_name)
-                .on_input(Message::NewProfileNameChanged)
-                .padding(10)
-                .size(16),
-            container(text(monitor_summary).size(12).color(COL_TEXT_MUTED))
-                .padding(10)
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.03))),
-                    border: iced::Border {
-                        radius: Radius::from(8.0),
+            let dialog_content = column![
+                text_input("Enter Profile Name", &self.new_profile_name)
+                    .on_input(Message::NewProfileNameChanged)
+                    .padding(10)
+                    .size(16),
+                container(text(monitor_summary).size(12).color(COL_TEXT_MUTED))
+                    .padding(10)
+                    .style(|_theme| container::Style {
+                        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.03))),
+                        border: iced::Border {
+                            radius: Radius::from(8.0),
+                            ..Default::default()
+                        },
                         ..Default::default()
-                    },
-                    ..Default::default()
-                }),
-        ]
-        .spacing(10);
+                    }),
+            ]
+            .spacing(10);
 
-        let btns = vec![
-            button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
-                .on_press(Message::CloseSaveDialog)
-                .style(secondary_button_style)
-                .width(Length::Fill)
-                .into(),
-            button(text("Confirm").align_x(iced::alignment::Horizontal::Center))
-                .on_press(Message::ConfirmSaveProfile)
-                .style(primary_button_style)
-                .width(Length::Fill)
-                .into(),
-        ];
+            let btns = vec![
+                button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::CloseSaveDialog)
+                    .style(secondary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+                button(text("Confirm").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::ConfirmSaveProfile)
+                    .style(primary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+            ];
 
-        widgets::dialog::view(
-            self.show_save_dialog,
-            "Save Profile",
-            dialog_content.into(),
-            btns,
-            content.into(),
-        )
+            widgets::dialog::view(
+                true,
+                "Save Profile",
+                dialog_content.into(),
+                btns,
+                content.into(),
+            )
+        } else {
+            content.into()
+        };
+        
+        if self.waiting_for_confirmation {
+             let confirm_content = column![
+                text(format!("Reverting in {} seconds...", self.confirmation_timer))
+                    .size(16)
+                    .color(COL_TEXT_DARK),
+                text("Keep these display settings?")
+                    .size(14)
+                    .color(COL_TEXT_MUTED)
+            ].spacing(10);
+
+            let btns = vec![
+                button(text("Revert").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::RevertResolution)
+                    .style(secondary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+                button(text("Keep Changes").align_x(iced::alignment::Horizontal::Center))
+                    .on_press(Message::ConfirmResolution)
+                    .style(primary_button_style)
+                    .width(Length::Fill)
+                    .into(),
+            ];
+
+            widgets::dialog::view(
+                true,
+                "Keep Changes?",
+                confirm_content.into(),
+                btns,
+                content
+            )
+        } else {
+            content
+        }
     }
 
     fn theme(&self) -> Theme {

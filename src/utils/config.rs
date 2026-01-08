@@ -8,7 +8,27 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
+    pub general: GeneralConfig,
+    #[serde(default)]
     pub profiles: Vec<Profile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneralConfig {
+    #[serde(default = "default_reset_timeout")]
+    pub reset_timeout: u8,
+}
+
+impl Default for GeneralConfig {
+    fn default() -> Self {
+        Self {
+            reset_timeout: default_reset_timeout(),
+        }
+    }
+}
+
+fn default_reset_timeout() -> u8 {
+    15
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

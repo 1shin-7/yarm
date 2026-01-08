@@ -15,6 +15,10 @@ pub enum Message {
     NewProfileNameChanged(String),
     Refresh,
     WindowResized(iced::Size),
+    // Confirmation Timer
+    Tick,
+    ConfirmResolution,
+    RevertResolution,
 }
 
 pub struct YarmApp {
@@ -26,6 +30,10 @@ pub struct YarmApp {
     pub status_message: String,
     pub show_save_dialog: bool,
     pub debug: bool,
+    // Confirmation state
+    pub waiting_for_confirmation: bool,
+    pub confirmation_timer: u8,
+    pub backup_resolutions: HashMap<String, Resolution>,
 }
 
 impl Default for YarmApp {
@@ -39,6 +47,9 @@ impl Default for YarmApp {
             status_message: "Loading...".to_string(),
             show_save_dialog: false,
             debug: false,
+            waiting_for_confirmation: false,
+            confirmation_timer: 0,
+            backup_resolutions: HashMap::new(),
         }
     }
 }
