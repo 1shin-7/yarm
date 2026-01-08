@@ -5,8 +5,9 @@ pub mod widgets;
 
 use crate::display::{DisplayManager, Monitor};
 use crate::utils::config::{ConfigManager, MonitorSetting, Profile};
-use iced::widget::{container, row};
-use iced::{event, Background, Element, Length, Subscription, Task, Theme};
+use iced::border::Radius;
+use iced::widget::{button, column, container, row, text, text_input};
+use iced::{event, Background, Color, Element, Length, Subscription, Task, Theme};
 
 use self::model::{Message, YarmApp};
 use self::theme::*;
@@ -197,10 +198,53 @@ impl YarmApp {
                 ..Default::default()
             });
 
+        // Dialog Content Construction
+        let monitor_summary = self
+            .staging_resolutions
+            .iter()
+            .fold(String::new(), |acc, (_, res)| {
+                format!(
+                    "{}• {}\n",
+                    acc, res
+                )
+            });
+
+        let dialog_content = column![
+            text_input("Enter Profile Name", &self.new_profile_name)
+                .on_input(Message::NewProfileNameChanged)
+                .padding(10)
+                .size(16),
+            container(text(monitor_summary).size(12).color(COL_TEXT_MUTED))
+                .padding(10)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.03))),
+                    border: iced::Border {
+                        radius: Radius::from(8.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+        ]
+        .spacing(10);
+
+        let btns = vec![
+            button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
+                .on_press(Message::CloseSaveDialog)
+                .style(secondary_button_style)
+                .width(Length::Fill)
+                .into(),
+            button(text("Confirm").align_x(iced::alignment::Horizontal::Center))
+                .on_press(Message::ConfirmSaveProfile)
+                .style(primary_button_style)
+                .width(Length::Fill)
+                .into(),
+        ];
+
         widgets::dialog::view(
             self.show_save_dialog,
-            &self.new_profile_name,
-            &self.staging_resolutions,
+            "Save Profile",
+            dialog_content.into(),
+            btns,
             content.into(),
         )
     }
