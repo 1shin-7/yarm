@@ -94,6 +94,36 @@ pub fn secondary_button_style(_theme: &Theme, status: button::Status) -> button:
     }
 }
 
+pub fn danger_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+    let base = button::Style {
+        background: Some(Background::Color(Color::from_rgb(0.8, 0.2, 0.2))),
+        text_color: Color::WHITE,
+        border: Border {
+            radius: Radius::from(12.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    match status {
+        button::Status::Hovered => button::Style {
+            background: Some(Background::Color(Color::from_rgb(0.9, 0.3, 0.3))),
+            ..base
+        },
+        button::Status::Pressed => button::Style {
+            background: Some(Background::Color(Color::from_rgb(0.7, 0.1, 0.1))),
+            ..base
+        },
+        _ => base,
+    }
+}
+
+pub fn backdrop_style(_theme: &Theme, _status: button::Status) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.6))),
+        ..Default::default()
+    }
+}
+
 pub fn pick_list_style(_theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let active = pick_list::Style {
         text_color: COL_TEXT_DARK,

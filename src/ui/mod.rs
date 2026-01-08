@@ -299,7 +299,7 @@ impl YarmApp {
             ]
             .spacing(10);
 
-            let btns = vec![
+            let buttons = vec![
                 button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
                     .on_press(Message::CloseSaveDialog)
                     .style(secondary_button_style)
@@ -316,7 +316,8 @@ impl YarmApp {
                 true,
                 "Save Profile",
                 dialog_content.into(),
-                btns,
+                buttons,
+                Some(Message::CloseSaveDialog),
                 content.into(),
             )
         } else {
@@ -329,7 +330,7 @@ impl YarmApp {
                 .size(16)
                 .color(COL_TEXT_DARK);
 
-            let btns = vec![
+            let buttons = vec![
                 button(text("Cancel").align_x(iced::alignment::Horizontal::Center))
                     .on_press(Message::CancelDeleteProfile)
                     .style(secondary_button_style)
@@ -337,7 +338,7 @@ impl YarmApp {
                     .into(),
                 button(text("Delete").align_x(iced::alignment::Horizontal::Center))
                     .on_press(Message::ConfirmDeleteProfile)
-                    .style(primary_button_style)
+                    .style(danger_button_style)
                     .width(Length::Fill)
                     .into(),
             ];
@@ -346,13 +347,14 @@ impl YarmApp {
                 true,
                 "Delete Profile",
                 container(delete_content).into(),
-                btns,
+                buttons,
+                Some(Message::CancelDeleteProfile),
                 content
             )
         } else {
             content
         };
-        
+
         // 3. Confirmation Dialog (Highest Priority)
         if self.waiting_for_confirmation {
              let confirm_content = column![
@@ -364,7 +366,7 @@ impl YarmApp {
                     .color(COL_TEXT_MUTED)
             ].spacing(10);
 
-            let btns = vec![
+            let buttons = vec![
                 button(text("Revert").align_x(iced::alignment::Horizontal::Center))
                     .on_press(Message::RevertResolution)
                     .style(secondary_button_style)
@@ -381,7 +383,8 @@ impl YarmApp {
                 true,
                 "Keep Changes?",
                 confirm_content.into(),
-                btns,
+                buttons,
+                None, // Blocks interaction
                 content
             )
         } else {
